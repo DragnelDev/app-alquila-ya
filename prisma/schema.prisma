@@ -1,0 +1,65 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Language {
+  code                  String               @id
+  name                  String
+  isDefault             Boolean              @default(false)
+  isActive              Boolean              @default(true)
+  pageTranslations      PageTranslation[]
+  sectionTranslations   SectionTranslation[]
+}
+
+model Page {
+  id           String            @id @default(uuid())
+  slugBase     String
+  isPublished  Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  translations PageTranslation[]
+  sections     Section[]
+}
+
+model PageTranslation {
+  id              String   @id @default(uuid())
+  pageId          String
+  languageCode    String
+  title           String
+  slug            String
+  metaTitle       String?
+  metaDescription String?
+  
+  page     Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageCode], references: [code], onDelete: Cascade)
+
+  @@unique([pageId, languageCode])
+}
+
+model Section {
+  id           String               @id @default(uuid())
+  pageId       String
+  key          String
+  order        Int                  @default(0)
+  page         Page                 @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  translations SectionTranslation[]
+}
+
+model SectionTranslation {
+  id           String   @id @default(uuid())
+  sectionId    String
+  languageCode String
+  title        String?
+  subtitle     String?
+  content      String?  @db.Text
+  buttonText   String?
+
+  section  Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageCode], references: [code], onDelete: Cascade)
+
+  @@unique([sectionId, languageCode])
+}

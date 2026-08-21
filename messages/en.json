@@ -1,0 +1,12 @@
+{
+  "Navigation": {
+    "home": "Home",
+    "about": "About Us",
+    "contact": "Contact"
+  },
+  "Hero": {
+    "title": "Welcome to Our Global Platform",
+    "subtitle": "Dynamic content in multiple languages in real-time.",
+    "cta": "Get Started"
+  }
+}

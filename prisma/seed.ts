@@ -1,73 +1,88 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import "dotenv/config";
+import { hash } from "bcryptjs";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   throw new Error("DATABASE_URL no está definida en el archivo .env");
 }
 
-const adapter = new PrismaPg({ connectionString });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString }),
+});
 
 async function main() {
-  // 1. Crear Idiomas
-  await prisma.language.upsert({
-    where: { code: "es" },
-    update: {},
-    create: { code: "es", name: "Español", isDefault: true },
-  });
+  const adminEmail = (
+    process.env.SEED_ADMIN_EMAIL ?? "admin@alquilaya.local"
+  ).toLowerCase();
+  const propEmail = (
+    process.env.SEED_PROPIETARIO_EMAIL ?? "propietario@alquilaya.local"
+  ).toLowerCase();
 
-  await prisma.language.upsert({
-    where: { code: "en" },
-    update: {},
-    create: { code: "en", name: "English", isDefault: false },
-  });
-
-  // 2. Crear una Página base
-  const homePage = await prisma.page.upsert({
-    where: { id: "home-page-id" },
+  await prisma.usuario.upsert({
+    where: { email: adminEmail },
     update: {},
     create: {
-      id: "home-page-id",
-      slugBase: "home",
-      translations: {
-        create: [
-          { languageCode: "es", title: "Inicio", slug: "inicio" },
-          { languageCode: "en", title: "Home", slug: "home" },
-        ],
-      },
+      nombre: "Administrador",
+      email: adminEmail,
+      passwordHash: await hash(
+        process.env.SEED_ADMIN_PASSWORD ?? "Admin1234!",
+        10
+      ),
+      rol: "ADMIN",
+      emailVerificado: new Date(),
     },
   });
 
-  // 3. Crear una Sección Dinámica con Traducciones
-  await prisma.section.create({
-    data: {
-      pageId: homePage.id,
-      key: "features_section",
-      order: 1,
-      translations: {
-        create: [
-          {
-            languageCode: "es",
-            title: "Características Principales",
-            subtitle: "Lo que hace única a nuestra plataforma.",
-            content:
-              "Contenido dinámico directamente desde PostgreSQL usando Prisma y Server Components.",
-            buttonText: "Saber Más",
-          },
-          {
-            languageCode: "en",
-            title: "Key Features",
-            subtitle: "What makes our platform unique.",
-            content:
-              "Dynamic content straight from PostgreSQL using Prisma and Server Components.",
-            buttonText: "Learn More",
-          },
-        ],
-      },
+  await prisma.usuario.upsert({
+    where: { email: propEmail },
+    update: {},
+    create: {
+      nombre: "Propietario",
+      email: propEmail,
+      passwordHash: await hash(
+        process.env.SEED_PROPIETARIO_PASSWORD ?? "Propietario1234!",
+        10
+      ),
+      rol: "PROPIETARIO",
+      emailVerificado: new Date(),
     },
   });
+
+  // Habitaciones de ejemplo (solo si aún no hay ninguna)
+  if ((await prisma.habitacion.count()) === 0) {
+    await prisma.habitacion.createMany({
+      data: [
+        {
+          nombre: "101",
+          piso: 1,
+          precioBase: 600,
+          descripcion: "Baño compartido",
+        },
+        {
+          nombre: "102",
+          piso: 1,
+          precioBase: 650,
+          descripcion: "Ventana a la calle",
+        },
+        {
+          nombre: "103",
+          piso: 1,
+          precioBase: 700,
+          descripcion: "Baño privado",
+        },
+        {
+          nombre: "201",
+          piso: 2,
+          precioBase: 750,
+          descripcion: "Baño privado y balcón",
+        },
+        { nombre: "202", piso: 2, precioBase: 700 },
+        { nombre: "203", piso: 2, precioBase: 700 },
+      ],
+    });
+  }
 
   console.log("Seed ejecutado con éxito");
 }
@@ -77,6 +92,4 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());

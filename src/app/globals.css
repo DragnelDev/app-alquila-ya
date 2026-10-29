@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/* Tokens de color: modo claro por defecto, modo oscuro con data-theme="dark" */
+:root {
+  color-scheme: light;
+  --page: #f1f4f3;
+  --surface: #ffffff;
+  --surface-2: #e8eeec;
+  --line: #d3dcd9;
+  --ink: #15201e;
+  --muted: #566866;
+  --accent: #0e6a72;
+  --accent-ink: #ffffff;
+  --ok: #17703f;
+  --ok-soft: #dcf2e4;
+  --warn: #805200;
+  --warn-soft: #faecc6;
+  --danger: #b0231b;
+  --danger-soft: #fadedb;
+  --info: #1f5596;
+  --info-soft: #dce8f7;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0c1312;
+  --surface: #131c1b;
+  --surface-2: #1a2726;
+  --line: #273736;
+  --ink: #e4edeb;
+  --muted: #8da3a0;
+  --accent: #4cc2b5;
+  --accent-ink: #052320;
+  --ok: #62d596;
+  --ok-soft: #12301f;
+  --warn: #f0c062;
+  --warn-soft: #33270b;
+  --danger: #ff8d83;
+  --danger-soft: #391815;
+  --info: #8dbbf2;
+  --info-soft: #14273e;
+}
+
+/* Los recibos siempre se imprimen en claro */
+@media print {
+  :root[data-theme="dark"] {
+    color-scheme: light;
+    --page: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #eef2f1;
+    --line: #c9d2d0;
+    --ink: #111111;
+    --muted: #444444;
+    --accent: #0e6a72;
+    --accent-ink: #ffffff;
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans:
+    "Segoe UI", "Helvetica Neue", Roboto, "Noto Sans", ui-sans-serif, system-ui,
+    sans-serif;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

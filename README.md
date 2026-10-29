@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AlquilaYa
 
-## Getting Started
+Sistema web unipersonal para gestionar el alquiler de habitaciones individuales: habitaciones, inquilinos,
+contratos con cobro flexible, cuotas automáticas, pagos con recibo imprimible y un panel con métricas y alertas.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router, Server Components y Server Actions) · TypeScript · PostgreSQL · Prisma 7 · Tailwind CSS 4.
+Interfaz en español con modo claro y oscuro (se recuerda la elección y respeta el tema del sistema la primera vez).
+
+## Puesta en marcha
 
 ```bash
+npm install
+cp .env.example .env          # edita DATABASE_URL y AUTH_SECRET
+npx prisma migrate deploy     # crea las tablas (incluye el índice único de contrato activo por habitación)
+npm run db:seed               # crea usuarios ADMIN y PROPIETARIO + habitaciones de ejemplo
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre http://localhost:3000 e ingresa con los usuarios del seed (cámbialos en `.env` antes de ejecutarlo):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Auth.js confía en el encabezado `Host` para construir sus URL. En producción, publica la aplicación detrás de un proxy o plataforma que establezca y valide ese encabezado.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Rol           | Correo por defecto            | Acceso                         |
+| ------------- | ----------------------------- | ------------------------------ |
+| `ADMIN`       | `admin@alquilaya.local`       | Todo el sistema                |
+| `PROPIETARIO` | `propietario@alquilaya.local` | Solo lectura: Panel y Reportes |
 
-## Learn More
+## Cómo funcionan los cobros
 
-To learn more about Next.js, take a look at the following resources:
+- Cada contrato define si se cobra el **día 1** (mes calendario) o un **día de corte** entre 1 y 28.
+- Las cuotas se generan solas, hasta 31 días hacia adelante, al crear el contrato y al abrir Panel, Cobranzas, Reportes o el contrato. No se duplican.
+- La primera cuota vence en el primer día de corte igual o posterior al inicio del contrato, por el monto completo.
+- Una cuota `PENDIENTE` pasa a `ATRASADO` cuando su fecha de vencimiento ya pasó.
+- "Hoy" se calcula con la hora de Bolivia (`America/La_Paz`). La moneda es el boliviano (Bs).
+- Al finalizar un contrato se eliminan las cuotas futuras; las vencidas se conservan.
+- El recibo (`/pagos/[id]/recibo`) se imprime o se guarda como PDF desde el navegador.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`npm run dev` · `npm run build` · `npm run typecheck` · `npm run db:migrate` · `npm run db:deploy` · `npm run db:seed`
 
-## Deploy on Vercel
+## Estructura
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+prisma/              schema.prisma, migraciones y seed
+src/proxy.ts         sesión y control de roles antes de renderizar
+src/app/             rutas: login y panel (dashboard, habitaciones, inquilinos, contratos, pagos, reportes)
+src/actions/         Server Actions por módulo
+src/lib/             prisma, auth, fechas, formato y lógica de cobranza
+src/validations/     esquemas zod
+src/components/      ui, layout, dashboard y pagos
+```

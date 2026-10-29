@@ -1,17 +1,33 @@
-import createMiddleware from "next-intl/middleware";
+import { NextResponse } from "next/server";
+import { auth } from "@/src/auth";
 
-export default createMiddleware({
-  // Idiomas soportados
-  locales: ["es", "en"],
+const RUTAS_PUBLICAS = [
+  "/login",
+  "/registro",
+  "/verificar-email",
+  "/olvide-password",
+  "/restablecer-password",
+  "/invitacion",
+];
+// El rol PROPIETARIO solo puede ver estas rutas (lectura) y su perfil
+const RUTAS_PROPIETARIO = ["/dashboard", "/reportes", "/perfil"];
 
-  // Idioma por defecto si no coincide ninguno
-  defaultLocale: "es",
+export default auth((request) => {
+  const { pathname } = request.nextUrl;
+  if (RUTAS_PUBLICAS.includes(pathname)) return;
 
-  // Prefijo de ruta siempre visible en la URL (/es/..., /en/...)
-  localePrefix: "always",
+  const usuario = request.auth?.user;
+  if (!usuario) return NextResponse.redirect(new URL("/login", request.url));
+
+  if (usuario.rol === "PROPIETARIO") {
+    const permitido = RUTAS_PROPIETARIO.some(
+      (r) => pathname === r || pathname.startsWith(`${r}/`)
+    );
+    if (!permitido)
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
 });
 
 export const config = {
-  // Matchear todas las rutas excepto archivos estáticos y la API interna
-  matcher: ["/", "/(es|en)/:path*", "/((?!_next|_vercel|.*\\..*).*)"],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

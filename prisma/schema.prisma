@@ -6,60 +6,248 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model Language {
-  code                  String               @id
-  name                  String
-  isDefault             Boolean              @default(false)
-  isActive              Boolean              @default(true)
-  pageTranslations      PageTranslation[]
-  sectionTranslations   SectionTranslation[]
+enum Rol {
+  ADMIN
+  PROPIETARIO
 }
 
-model Page {
-  id           String            @id @default(uuid())
-  slugBase     String
-  isPublished  Boolean           @default(true)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  translations PageTranslation[]
-  sections     Section[]
+enum EstadoHabitacion {
+  DISPONIBLE
+  OCUPADA
+  MANTENIMIENTO
 }
 
-model PageTranslation {
-  id              String   @id @default(uuid())
-  pageId          String
-  languageCode    String
-  title           String
-  slug            String
-  metaTitle       String?
-  metaDescription String?
-  
-  page     Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  language Language @relation(fields: [languageCode], references: [code], onDelete: Cascade)
-
-  @@unique([pageId, languageCode])
+enum ModalidadCobro {
+  MES_CALENDARIO // se cobra el día 1 de cada mes
+  DIA_CORTE      // se cobra el día `diaCorte` de cada mes
 }
 
-model Section {
-  id           String               @id @default(uuid())
-  pageId       String
-  key          String
-  order        Int                  @default(0)
-  page         Page                 @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  translations SectionTranslation[]
+enum EstadoContrato {
+  ACTIVO
+  FINALIZADO
+  CANCELADO
 }
 
-model SectionTranslation {
-  id           String   @id @default(uuid())
-  sectionId    String
-  languageCode String
-  title        String?
-  subtitle     String?
-  content      String?  @db.Text
-  buttonText   String?
+enum EstadoPago {
+  PENDIENTE
+  PAGADO
+  ATRASADO
+}
 
-  section  Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  language Language @relation(fields: [languageCode], references: [code], onDelete: Cascade)
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  QR
+}
 
-  @@unique([sectionId, languageCode])
+enum TipoServicio {
+  LUZ
+  AGUA
+  WIFI
+}
+
+enum ModoServicio {
+  FIJO    // monto fijo mensual adicional
+  MEDIDOR // (lectura actual - anterior) x tarifa por unidad
+  MANUAL  // el monto se ingresa cada mes (ej. parte de la factura)
+}
+
+enum TipoToken {
+  VERIFICAR_EMAIL
+  RECUPERAR_PASSWORD
+  INVITACION
+  CAMBIO_EMAIL
+}
+
+model Usuario {
+  id              String    @id @default(uuid())
+  nombre          String
+  email           String    @unique
+  emailVerificado DateTime? @map("email_verificado")
+  emailPendiente  String?   @map("email_pendiente") // nuevo correo a la espera de confirmación
+  passwordHash    String?   @map("password_hash") // null si solo entra con Google o está invitado
+  telefono        String?
+  imagen          String? // data URL reducida o URL de Google
+  rol             Rol       @default(ADMIN)
+  activo          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  cuentas Cuenta[]
+  tokens  TokenUsuario[]
+
+  @@map("usuarios")
+}
+
+model Cuenta {
+  id                String   @id @default(uuid())
+  usuarioId         String   @map("usuario_id")
+  proveedor         String // "google"
+  proveedorCuentaId String   @map("proveedor_cuenta_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([proveedor, proveedorCuentaId])
+  @@index([usuarioId])
+  @@map("cuentas")
+}
+
+model TokenUsuario {
+  id        String    @id @default(uuid())
+  usuarioId String    @map("usuario_id")
+  tipo      TipoToken
+  tokenHash String    @unique @map("token_hash") // SHA-256; el token real solo viaja por correo
+  expiraEn  DateTime  @map("expira_en")
+  usadoEn   DateTime? @map("usado_en")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, tipo])
+  @@map("tokens_usuario")
+}
+
+model Habitacion {
+  id          String           @id @default(uuid())
+  nombre      String           @unique // número o nombre del cuarto
+  piso        Int
+  precioBase  Decimal          @map("precio_base") @db.Decimal(10, 2)
+  descripcion String?
+  estado      EstadoHabitacion @default(DISPONIBLE)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  contratos Contrato[]
+
+  @@map("habitaciones")
+}
+
+model Inquilino {
+  id                         String   @id @default(uuid())
+  nombre                     String
+  apellidos                  String
+  documento                  String   @unique // CI
+  telefono                   String
+  contactoEmergenciaNombre   String   @map("contacto_emergencia_nombre")
+  contactoEmergenciaTelefono String   @map("contacto_emergencia_telefono")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
+
+  contratos Contrato[]
+
+  @@map("inquilinos")
+}
+
+model Contrato {
+  id               String         @id @default(uuid())
+  habitacionId     String         @map("habitacion_id")
+  inquilinoId      String         @map("inquilino_id")
+  fechaInicio      DateTime       @map("fecha_inicio") @db.Date
+  fechaFin         DateTime?      @map("fecha_fin") @db.Date
+  modalidadCobro   ModalidadCobro @default(MES_CALENDARIO) @map("modalidad_cobro")
+  diaCorte         Int            @default(1) @map("dia_corte") // 1..28
+  montoMensual     Decimal        @map("monto_mensual") @db.Decimal(10, 2) // precio pactado (snapshot)
+  incluyeLuz       Boolean        @default(false) @map("incluye_luz")
+  incluyeAgua      Boolean        @default(false) @map("incluye_agua")
+  incluyeWifi      Boolean        @default(false) @map("incluye_wifi")
+  depositoGarantia Decimal        @default(0) @map("deposito_garantia") @db.Decimal(10, 2)
+  estado           EstadoContrato @default(ACTIVO)
+  observaciones    String?
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  habitacion Habitacion @relation(fields: [habitacionId], references: [id], onDelete: Restrict)
+  inquilino  Inquilino  @relation(fields: [inquilinoId], references: [id], onDelete: Restrict)
+  pagos      Pago[]
+  servicios  ServicioContrato[]
+
+  @@index([habitacionId, estado])
+  @@index([inquilinoId])
+  @@map("contratos")
+}
+
+/// Configuración de cobro adicional de un servicio NO incluido en la tarifa del contrato
+model ServicioContrato {
+  id             String       @id @default(uuid())
+  contratoId     String       @map("contrato_id")
+  tipo           TipoServicio
+  modo           ModoServicio
+  montoFijo      Decimal?     @map("monto_fijo") @db.Decimal(10, 2) // modo FIJO
+  tarifaUnitaria Decimal?     @map("tarifa_unitaria") @db.Decimal(10, 4) // modo MEDIDOR (Bs por kWh o m³)
+  lecturaInicial Decimal?     @map("lectura_inicial") @db.Decimal(12, 2) // modo MEDIDOR
+  vigenteDesde   DateTime     @map("vigente_desde") @db.Date // los cargos FIJO se generan desde esta fecha
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, tipo])
+  @@map("servicios_contrato")
+}
+
+model Pago {
+  id               String     @id @default(uuid())
+  contratoId       String     @map("contrato_id")
+  periodoInicio    DateTime   @map("periodo_inicio") @db.Date
+  periodoFin       DateTime   @map("periodo_fin") @db.Date
+  fechaVencimiento DateTime   @map("fecha_vencimiento") @db.Date
+  monto            Decimal    @db.Decimal(10, 2) // alquiler base de la cuota
+  estado           EstadoPago @default(PENDIENTE)
+  reciboId         String?    @map("recibo_id")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  contrato  Contrato        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  recibo    Recibo?         @relation(fields: [reciboId], references: [id], onDelete: SetNull)
+  servicios CobroServicio[]
+
+  @@unique([contratoId, fechaVencimiento]) // evita cuotas duplicadas
+  @@index([estado, fechaVencimiento])
+  @@index([reciboId])
+  @@map("pagos")
+}
+
+/// Cargo mensual de un servicio, colgado de la cuota del mismo período; tiene su propio estado de pago
+model CobroServicio {
+  id               String       @id @default(uuid())
+  pagoId           String       @map("pago_id")
+  tipo             TipoServicio
+  modo             ModoServicio // modo con que se calculó (queda como historial)
+  lecturaAnterior  Decimal?     @map("lectura_anterior") @db.Decimal(12, 2)
+  lecturaActual    Decimal?     @map("lectura_actual") @db.Decimal(12, 2)
+  consumo          Decimal?     @db.Decimal(12, 2)
+  tarifaUnitaria   Decimal?     @map("tarifa_unitaria") @db.Decimal(10, 4)
+  monto            Decimal      @db.Decimal(10, 2)
+  fechaVencimiento DateTime     @map("fecha_vencimiento") @db.Date
+  estado           EstadoPago   @default(PENDIENTE)
+  reciboId         String?      @map("recibo_id")
+  observaciones    String?
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  pago   Pago    @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  recibo Recibo? @relation(fields: [reciboId], references: [id], onDelete: SetNull)
+
+  @@unique([pagoId, tipo])
+  @@index([estado, fechaVencimiento])
+  @@index([reciboId])
+  @@map("cobros_servicio")
+}
+
+/// Una operación de cobro: puede incluir el alquiler y/o uno o más servicios
+model Recibo {
+  id         String     @id @default(uuid())
+  numero     Int        @unique @default(autoincrement())
+  fechaPago  DateTime   @map("fecha_pago")
+  metodoPago MetodoPago @map("metodo_pago")
+  referencia String?
+  total      Decimal    @db.Decimal(10, 2)
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  pagos          Pago[]
+  cobrosServicio CobroServicio[]
+
+  @@index([fechaPago])
+  @@map("recibos")
 }
